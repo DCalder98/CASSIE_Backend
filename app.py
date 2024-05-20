@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify
-from conversational_ai import send_message
+from main import send_message  # Updated import
 from semantic_search import semantic_search
 from titleFetch import get_doc_names
 from docUpload import doc_upload
@@ -11,7 +11,6 @@ app = Flask(__name__)
 @app.route('/', methods=['GET'])
 def test():
     return jsonify({'message': 'Hello, World!'})
-
 
 @app.route('/query', methods=['GET'])
 @cross_origin()
@@ -32,7 +31,6 @@ def handle_query():
     response = send_message(event, context)
     return response
 
-
 @app.route('/sem_search', methods=['GET'])
 @cross_origin()
 def handle_search():
@@ -48,7 +46,6 @@ def handle_search():
     response = semantic_search(event, context)
     return jsonify(response)
 
-
 @app.route('/get_doc_names', methods=['GET'])
 @cross_origin()
 def handle_get_doc_names():
@@ -59,7 +56,7 @@ def handle_get_doc_names():
         return document_titles
     except Exception as e:
         return jsonify(error=str(e)), 500
-    
+
 @app.route('/upload', methods=['POST'])
 @cross_origin()
 def upload_file():
@@ -67,8 +64,7 @@ def upload_file():
         doc_upload()
         return jsonify({'message': 'File uploaded successfully!'})
 
-
 if __name__ == '__main__':
     app.run(debug=True)
 
-CORS(app) 
+CORS(app)

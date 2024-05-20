@@ -1,14 +1,19 @@
 import json
 import boto3
+from pinecone import Pinecone
 import os
 from datetime import datetime
-from pinecone import Pinecone
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-from langchain_pinecone import PineconeVectorStore
-from langchain.chains import RetrievalQA, LLMChain
-from langchain.memory import ConversationBufferMemory
-from langchain.prompts import PromptTemplate
 from flask import request
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from langchain_community.chat_models import ChatOpenAI  # Correct import for ChatOpenAI
+from langchain_openai import OpenAIEmbeddings
+from langchain_pinecone import PineconeVectorStore
+from langchain.prompts import PromptTemplate
+from langchain.memory import ConversationBufferMemory
+from langchain.chains import LLMChain
+from query_expansion import expand_query
+from self_query_improvement import hybrid_search
+from reranking_template import rerank_passages
 
 # Set API keys from environment variables
 os.environ['PINECONE_API_KEY'] = '57208fe4-cd6b-45a2-83fd-12ee06690b67'
@@ -27,16 +32,17 @@ LLM_CHAIN_PROMPT = PromptTemplate(
 Standalone question:"""
 )
 
-RETRIEVAL_PROMPT = PromptTemplate(
+ANSWER_PROMPT = PromptTemplate(
     input_variables=["question", 'context'],
     template="""## CONTEXT:
 {context}
 # QUERY:
 {question}
 ## INSTRUCTIONS:
-You are a retrieval chatbot. Your task is to answer the above query using the context provided. If you cannot sufficiently answer the question with the information passed, respond that you don't know, and try to answer as best you can from your knowledge and the provided context.
+You are an AI language model assistant. Use the provided context to answer the query. If the context does not provide enough information, indicate that additional information is needed.
 ## ANSWER:"""
 )
+
 check_prompt = PromptTemplate(
     input_variables=["question"],
     template="Does the following question require looking up external information or can it be answered directly? Please respond with 'yes' or 'no'.\n\nQuestion: {question}"
@@ -68,26 +74,17 @@ llm = ChatOpenAI(
 )
 
 def create_search_kwargs(filters):
-    """
-    Create search keyword arguments for the retriever.
-    """
     search_kwargs = {'k': 15}
     if filters:
         search_kwargs['filter'] = {'document_title': {'$in': filters}}
     return search_kwargs
 
 def load_messages_into_memory(messages, memory):
-    """
-    Load past messages into conversation memory.
-    """
     for message in messages:
         memory.chat_memory.add_user_message(message['question'])
         memory.chat_memory.add_ai_message(message['response'])
 
 def get_past_messages(sessionId):
-    """
-    Retrieve past messages for the session from DynamoDB.
-    """
     try:
         response = table.get_item(Key={"sessionId": sessionId})
         if "Item" in response:
@@ -99,9 +96,6 @@ def get_past_messages(sessionId):
         raise e
 
 def save_to_dynamodb(sessionId, timestamp, query, bot_response):
-    """
-    Append the query and response to the chat session in DynamoDB.
-    """
     try:
         response = table.update_item(
             Key={"sessionId": sessionId},
@@ -124,9 +118,6 @@ def save_to_dynamodb(sessionId, timestamp, query, bot_response):
         raise e
 
 def save_to_user_dynamodb(sessionId, timestamp, userId):
-    """
-    Append the session to the user's entry in DynamoDB.
-    """
     try:
         response = userTable.get_item(Key={"userId": userId})
         user_item = response.get('Item')
@@ -170,12 +161,47 @@ def save_to_user_dynamodb(sessionId, timestamp, userId):
     except Exception as e:
         print(f"Error updating DynamoDB: {str(e)}")
         raise e
-    
+
+def handle_question(question):
+    expanded_queries = expand_query(question)
+    all_results = []
+    results_with_metadata = []
+    results_with_metadata_reranked = []
+
+    # Using ThreadPoolExecutor for parallel processing
+    with ThreadPoolExecutor() as executor:
+        future_to_query = {executor.submit(hybrid_search, q): q for q in expanded_queries}
+        for future in as_completed(future_to_query):
+            query = future_to_query[future]
+            try:
+                hybrid_results = future.result()
+                all_results.extend([result.page_content for result in hybrid_results])
+                results_with_metadata.extend(hybrid_results)
+            except Exception as exc:
+                print(f'Hybrid search generated an exception: {exc}')
+
+    reranked_passages = rerank_passages(question, all_results, k=5)
+    print(reranked_passages)
+    reranked_results = []
+    print(results_with_metadata)
+    for i in reranked_passages['order']:
+        print(all_results[i-1])
+        reranked_results.append(all_results[i-1])
+        results_with_metadata_reranked.append(results_with_metadata[i-1])
+
+
+    answer_chain = LLMChain(llm=llm, prompt=ANSWER_PROMPT, output_key="answer")
+    response = answer_chain.invoke({'question': question, 'context': reranked_results})
+
+    # Extracting metadata from results_with_metadata_reranked
+    source_documents = [{"source": {
+        "page_content": result.page_content,
+        "metadata": result.metadata
+    }} for result in results_with_metadata_reranked]
+
+    return response['answer'], source_documents
 
 def send_message(event, context):
-    """
-    Handle incoming messages, process them using the retrieval QA pipeline, and return the response.
-    """
     memory.clear()
 
     # Extract parameters from the request
@@ -185,57 +211,17 @@ def send_message(event, context):
     database = request.args.get("database")
     filters = request.args.getlist("filters")
 
-    # Initialize Pinecone
-    pc = Pinecone(api_key=pinecone_api_key)
-    index = pc.Index(database)
-
-    # Initialize Pinecone Vector Store
-    text_field = "text"
-    vectorstore = PineconeVectorStore(index, embeddings, text_field)
-    search_kwargs = create_search_kwargs(filters)
-
-    # Setup RetrievalQA
-    qa = RetrievalQA.from_chain_type(
-        chain_type="stuff",
-        llm=llm,
-        retriever=vectorstore.as_retriever(search_kwargs=search_kwargs),
-        return_source_documents=True,
-        chain_type_kwargs={"prompt": RETRIEVAL_PROMPT},
-        output_key="answer",
-    )
-
-    # Setup chains
-    question_chain = LLMChain(llm=llm, prompt=LLM_CHAIN_PROMPT, output_key="query")
-    review_chain = LLMChain(llm=llm, prompt=check_prompt, output_key="result")
-
-    def needs_retrieval(question):
-        response = review_chain(question)
-        return response['result'].strip().lower() == "yes"
-
     # Load past messages into memory
     past_messages = get_past_messages(sessionId)
     load_messages_into_memory(past_messages, memory)
 
     # Rephrase the question
+    question_chain = LLMChain(llm=llm, prompt=LLM_CHAIN_PROMPT, output_key="query")
     rephrased_question = question_chain({'question': query, 'chat_history': memory.buffer_as_str})
     print(rephrased_question['query'])
 
-    def handle_question(question):
-        if needs_retrieval(question):
-            response = qa.run(question)
-            source_documents = [doc.metadata for doc in response[source_documents]]
-            response = response["answer"]
-        else:
-            response = llm.invoke(question)
-            response = response.content
-            source_documents = []
-        return response, source_documents
-    
-
-    
     # Generate a response using the RetrievalQA chain
     response, source_documents = handle_question(rephrased_question['query'])
-
 
     # Get current timestamp
     timestamp = datetime.utcnow().isoformat()
