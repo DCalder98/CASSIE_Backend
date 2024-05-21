@@ -1,4 +1,4 @@
-Flask==3.0.2
+Flask==2.2.5
 Flask-Cors==4.0.0
 requests==2.31.0
 boto3==1.28.50
@@ -13,10 +13,10 @@ react-dom==17.0.2
 react-markdown==8.0.3
 rehype-raw==5.0.1
 remark-breaks==2.0.0
-concurrent.futures==3.3.0
+# concurrent.futures is part of the standard library, no need to install it separately
 
 # Additional dependencies from your pip freeze that might be relevant
-Werkzeug==3.0.2
+Werkzeug==2.2.5
 numpy==1.24.3
 pandas==1.5.3
 Pillow==10.3.0
