@@ -1,12 +1,12 @@
 import json
 import boto3
 from pinecone import Pinecone
+from openai import OpenAI
 import os
 from datetime import datetime
-from flask import request
+from flask import request, Response
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from langchain_community.chat_models import ChatOpenAI  # Correct import for ChatOpenAI
-from langchain_openai import OpenAIEmbeddings
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_pinecone import PineconeVectorStore
 from langchain.prompts import PromptTemplate
 from langchain.memory import ConversationBufferMemory
@@ -14,38 +14,39 @@ from langchain.chains import LLMChain
 from query_expansion import expand_query
 from self_query_improvement import hybrid_search
 from reranking_template import rerank_passages
+from langchain.callbacks import StdOutCallbackHandler
 
 # Set API keys from environment variables
-os.environ['PINECONE_API_KEY'] = '57208fe4-cd6b-45a2-83fd-12ee06690b67'
-os.environ['OPENAI_API_KEY'] = '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'
-pinecone_api_key = os.environ.get('PINECONE_API_KEY')
-openai_api_key = os.environ.get('OPENAI_API_KEY')
+os.environ["PINECONE_API_KEY"] = "57208fe4-cd6b-45a2-83fd-12ee06690b67"
+os.environ["OPENAI_API_KEY"] = "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"
+pinecone_api_key = os.environ.get("PINECONE_API_KEY")
+openai_api_key = os.environ.get("OPENAI_API_KEY")
 
 # Define prompt templates
 LLM_CHAIN_PROMPT = PromptTemplate(
-    input_variables=["question", 'chat_history'],
+    input_variables=["question", "chat_history"],
     template="""Given the following conversation and a follow-up question, rephrase the follow-up question to be a standalone question.
 ## Conversation History:
 {chat_history}
 ## Query:
 {question}
-Standalone question:"""
+Standalone question:""",
 )
 
 ANSWER_PROMPT = PromptTemplate(
-    input_variables=["question", 'context'],
+    input_variables=["question", "context"],
     template="""## CONTEXT:
 {context}
 # QUERY:
 {question}
 ## INSTRUCTIONS:
 You are an AI language model assistant. Use the provided context to answer the query. If the context does not provide enough information, indicate that additional information is needed.
-## ANSWER:"""
+## ANSWER:""",
 )
 
 check_prompt = PromptTemplate(
     input_variables=["question"],
-    template="Does the following question require looking up external information or can it be answered directly? Please respond with 'yes' or 'no'.\n\nQuestion: {question}"
+    template="Does the following question require looking up external information or can it be answered directly? Please respond with 'yes' or 'no'.\n\nQuestion: {question}",
 )
 
 # Initialize conversation memory
@@ -58,31 +59,36 @@ memory = ConversationBufferMemory(
 # Initialize AWS DynamoDB clients
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table("ChatSessions")
-userTable = dynamodb.Table('userSessions')
+userTable = dynamodb.Table("userSessions")
 
 # Initialize OpenAI Embeddings
 embeddings = OpenAIEmbeddings(
-    model="text-embedding-3-small",
-    openai_api_key=openai_api_key
+    model="text-embedding-3-small", openai_api_key=openai_api_key
 )
 
 # Initialize ChatOpenAI
-llm = ChatOpenAI(
+llm = ChatOpenAI(openai_api_key=openai_api_key, model_name="gpt-4o", temperature=0)
+
+answer_llm = ChatOpenAI(
     openai_api_key=openai_api_key,
     model_name="gpt-4o",
-    temperature=0
+    temperature=0,
+    stream=True,  # Enable streaming
 )
 
+
 def create_search_kwargs(filters):
-    search_kwargs = {'k': 15}
+    search_kwargs = {"k": 15}
     if filters:
-        search_kwargs['filter'] = {'document_title': {'$in': filters}}
+        search_kwargs["filter"] = {"document_title": {"$in": filters}}
     return search_kwargs
+
 
 def load_messages_into_memory(messages, memory):
     for message in messages:
-        memory.chat_memory.add_user_message(message['question'])
-        memory.chat_memory.add_ai_message(message['response'])
+        memory.chat_memory.add_user_message(message["question"])
+        memory.chat_memory.add_ai_message(message["response"])
+
 
 def get_past_messages(sessionId):
     try:
@@ -94,6 +100,7 @@ def get_past_messages(sessionId):
     except Exception as e:
         print(f"Error fetching from DynamoDB: {str(e)}")
         raise e
+
 
 def save_to_dynamodb(sessionId, timestamp, query, bot_response):
     try:
@@ -117,27 +124,31 @@ def save_to_dynamodb(sessionId, timestamp, query, bot_response):
         print(f"Error updating DynamoDB: {str(e)}")
         raise e
 
+
 def save_to_user_dynamodb(sessionId, timestamp, userId):
     try:
         response = userTable.get_item(Key={"userId": userId})
-        user_item = response.get('Item')
+        user_item = response.get("Item")
 
         expression_attribute_names = {}
         expression_attribute_values = {}
 
         if user_item:
-            sessions = user_item.get('sessions', [])
-            session_exists = next((session for session in sessions if session['sessionId'] == sessionId), None)
-            
+            sessions = user_item.get("sessions", [])
+            session_exists = next(
+                (session for session in sessions if session["sessionId"] == sessionId),
+                None,
+            )
+
             if session_exists:
                 session_index = sessions.index(session_exists)
                 update_expression = f"SET sessions[{session_index}].#ts = :timestamp"
-                expression_attribute_names = {'#ts': 'timestamp'}
-                expression_attribute_values = {
-                    ":timestamp": timestamp
-                }
+                expression_attribute_names = {"#ts": "timestamp"}
+                expression_attribute_values = {":timestamp": timestamp}
             else:
-                update_expression = "SET sessions = list_append(sessions, :new_sessions)"
+                update_expression = (
+                    "SET sessions = list_append(sessions, :new_sessions)"
+                )
                 expression_attribute_values = {
                     ":new_sessions": [{"sessionId": sessionId, "timestamp": timestamp}]
                 }
@@ -155,12 +166,13 @@ def save_to_user_dynamodb(sessionId, timestamp, userId):
         }
         if expression_attribute_names:
             update_params["ExpressionAttributeNames"] = expression_attribute_names
-        
+
         response = userTable.update_item(**update_params)
         print(f"UpdateItem succeeded: {json.dumps(response, indent=4)}")
     except Exception as e:
         print(f"Error updating DynamoDB: {str(e)}")
         raise e
+
 
 def handle_question(question):
     expanded_queries = expand_query(question)
@@ -170,7 +182,9 @@ def handle_question(question):
 
     # Using ThreadPoolExecutor for parallel processing
     with ThreadPoolExecutor() as executor:
-        future_to_query = {executor.submit(hybrid_search, q): q for q in expanded_queries}
+        future_to_query = {
+            executor.submit(hybrid_search, q): q for q in expanded_queries
+        }
         for future in as_completed(future_to_query):
             query = future_to_query[future]
             try:
@@ -178,28 +192,48 @@ def handle_question(question):
                 all_results.extend([result.page_content for result in hybrid_results])
                 results_with_metadata.extend(hybrid_results)
             except Exception as exc:
-                print(f'Hybrid search generated an exception: {exc}')
+                print(f"Hybrid search generated an exception: {exc}")
 
     reranked_passages = rerank_passages(question, all_results, k=5)
     print(reranked_passages)
     reranked_results = []
+    context_string = ""
     print(results_with_metadata)
-    for i in reranked_passages['order']:
-        print(all_results[i-1])
-        reranked_results.append(all_results[i-1])
-        results_with_metadata_reranked.append(results_with_metadata[i-1])
+    for i in reranked_passages["order"]:
+        print(all_results[i - 1])
+        reranked_results.append(all_results[i - 1])
+        results_with_metadata_reranked.append(results_with_metadata[i - 1])
+        for i in results_with_metadata_reranked:
+            context_string += i.page_content + "\n"
 
 
-    answer_chain = LLMChain(llm=llm, prompt=ANSWER_PROMPT, output_key="answer")
-    response = answer_chain.invoke({'question': question, 'context': reranked_results})
+    answer_chain = LLMChain(llm=answer_llm, prompt=ANSWER_PROMPT, output_key="answer")
 
-    # Extracting metadata from results_with_metadata_reranked
-    source_documents = [{"source": {
-        "page_content": result.page_content,
-        "metadata": result.metadata
-    }} for result in results_with_metadata_reranked]
+    def generate():
+        for token in answer_llm.stream(
+            f"""## CONTEXT:
+            {context_string}\n
+            # QUERY:
+            {question}
+            ## INSTRUCTIONS:
+            You are an AI language model assistant. Use the provided context to answer the query. If the context does not provide enough information, indicate that additional information is needed.
+            ## ANSWER:"""
+        ):
+            print(token)
+            if '\n' in token.content:
+                token.content = token.content.replace('\n', '<br>')
+            print(token.content)
+            yield f"data: {token.content}\n\n"
+        
+        yield 'event: end\ndata: end\n\n'
 
-    return response['answer'], source_documents
+    source_documents = [
+        {"source": {"page_content": result.page_content, "metadata": result.metadata}}
+        for result in results_with_metadata_reranked
+    ]
+
+    return generate, source_documents
+
 
 def send_message(event, context):
     memory.clear()
@@ -217,21 +251,20 @@ def send_message(event, context):
 
     # Rephrase the question
     question_chain = LLMChain(llm=llm, prompt=LLM_CHAIN_PROMPT, output_key="query")
-    rephrased_question = question_chain({'question': query, 'chat_history': memory.buffer_as_str})
-    print(rephrased_question['query'])
+    rephrased_question = question_chain(
+        {"question": query, "chat_history": memory.buffer_as_str}
+    )
+    print(rephrased_question["query"])
 
     # Generate a response using the RetrievalQA chain
-    response, source_documents = handle_question(rephrased_question['query'])
+    generate, source_documents = handle_question(rephrased_question["query"])
 
     # Get current timestamp
     timestamp = datetime.utcnow().isoformat()
 
     # Save the query and response to DynamoDB
-    save_to_dynamodb(sessionId, timestamp, query, response)
+    save_to_dynamodb(sessionId, timestamp, query, "")
     save_to_user_dynamodb(sessionId, timestamp, userId)
 
     # Return the response
-    return {
-        "result": response,
-        "sources": source_documents
-    }
+    return Response(generate(), mimetype="text/event-stream")
