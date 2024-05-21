@@ -4,8 +4,13 @@ from semantic_search import semantic_search
 from titleFetch import get_doc_names
 from docUpload import doc_upload
 from flask_cors import CORS, cross_origin
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = Flask(__name__)
+
+
 
 # Example Route
 @app.route('/', methods=['GET'])

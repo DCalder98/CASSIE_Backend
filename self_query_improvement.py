@@ -8,11 +8,12 @@ from pinecone import Pinecone
 from langchain_openai import ChatOpenAI
 import os
 import json
+from dotenv import load_dotenv
 
-os.environ['PINECONE_API_KEY'] = '57208fe4-cd6b-45a2-83fd-12ee06690b67'
-os.environ['OPENAI_API_KEY'] = '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'
-pinecone_api_key = os.environ.get('PINECONE_API_KEY')
-openai_api_key = os.environ.get('OPENAI_API_KEY')
+load_dotenv()
+
+pinecone_api_key = os.getenv('PINECONE_API_KEY')
+openai_api_key = os.getenv('OPENAI_API_KEY')
 
 metadata_field_info = [
     AttributeInfo(

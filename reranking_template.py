@@ -4,8 +4,8 @@ from langchain_community.chat_models import ChatOpenAI  # Correct import for Cha
 import json
 import os
 
-pinecone_api_key = os.environ.get('PINECONE_API_KEY')
-openai_api_key = os.environ.get('OPENAI_API_KEY')
+pinecone_api_key = os.getenv('PINECONE_API_KEY')
+openai_api_key = os.getenv('OPENAI_API_KEY')
 
 rerank_template = PromptTemplate(
     input_variables=["question", "passages", "k"],

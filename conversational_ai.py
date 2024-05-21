@@ -11,10 +11,10 @@ from langchain.memory import ConversationBufferMemory
 from langchain.prompts import PromptTemplate
 from flask import request
 
-load_dotenv()
+load_dotenv(verbose=True)
 
-pinecone_api_key = os.environ.get('PINECONE_API_KEY')
-openai_api_key = os.environ.get('OPENAI_API_KEY')
+pinecone_api_key = os.getenv('PINECONE_API_KEY')
+openai_api_key = os.getenv('OPENAI_API_KEY')
 
 # Define prompt templates
 LLM_CHAIN_PROMPT = PromptTemplate(

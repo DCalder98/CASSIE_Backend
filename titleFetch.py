@@ -1,10 +1,12 @@
 from pinecone import Pinecone
 import os
 from flask import jsonify, request
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Set API keys from environment variables
-os.environ['PINECONE_API_KEY'] = '57208fe4-cd6b-45a2-83fd-12ee06690b67'
-pinecone_api_key = os.environ.get('PINECONE_API_KEY')
+pinecone_api_key = os.getenv('PINECONE_API_KEY')
 
 def get_doc_names(database):
     """

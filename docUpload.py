@@ -16,9 +16,9 @@ from langchain_pinecone import PineconeVectorStore
 import tempfile
 import requests
 
-pinecone_api_key = os.environ.get('PINECONE_API_KEY')   # Get the Pinecone API key from the environment variables
-openai_api_key = os.environ.get('OPENAI_API_KEY')      # Get the OpenAI API key from the environment variables
-unstructured_api_key = os.environ.get('UNSTRUCTURED_API_KEY')  # Get the Unstructured API key from the environment variables
+pinecone_api_key = os.getenv('PINECONE_API_KEY')   # Get the Pinecone API key from the environment variables
+openai_api_key = os.getenv('OPENAI_API_KEY')      # Get the OpenAI API key from the environment variables
+unstructured_api_key = os.getenv('UNSTRUCTURED_API_KEY')  # Get the Unstructured API key from the environment variables
 
 s = UnstructuredClient(api_key_auth=unstructured_api_key)  # Initialize the Unstructured client
 
@@ -115,7 +115,7 @@ def partition_doc(file_path, index):
     prompt = ChatPromptTemplate.from_template(prompt_text)
 
     # Summary chain
-    model = ChatOpenAI(temperature=0, model="gpt-4-0125-preview", api_key=openai_api_key)
+    model = ChatOpenAI(temperature=0, model="gpt-4o", api_key=openai_api_key)
     summarize_chain = {"element": lambda x: x} | prompt | model | StrOutputParser()
 
     # Apply to tables

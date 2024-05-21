@@ -17,13 +17,14 @@ from reranking_template import rerank_passages
 from langchain.callbacks import StdOutCallbackHandler
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv('C:/Users/Dan/OneDrive/Documents/Crosslinx/AI_Web/backend/CASSIE_Backend/.env')
 
 
 # Set API keys from environment variables
-pinecone_api_key = os.environ.get("PINECONE_API_KEY")
-openai_api_key = os.environ.get("OPENAI_API_KEY")
+pinecone_api_key = os.getenv("PINECONE_API_KEY")
+openai_api_key = os.getenv("OPENAI_API_KEY")
 
+print(openai_api_key)
 # Define prompt templates
 LLM_CHAIN_PROMPT = PromptTemplate(
     input_variables=["question", "chat_history"],
