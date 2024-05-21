@@ -14,11 +14,6 @@ langsmith==0.1.27
 json5==0.9.14
 boto3==1.28.50
 openai==1.14.1
-react
-react-dom
-react-markdown
-rehype-raw
-remark-breaks
 # concurrent.futures is part of the standard library, no need to install it separately
 
 # Additional dependencies from your pip freeze that might be relevant
