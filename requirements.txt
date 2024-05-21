@@ -27,4 +27,4 @@ numpy
 pandas
 Pillow
 beautifulsoup4
-'unstructured[all-docs]'
+unstructured

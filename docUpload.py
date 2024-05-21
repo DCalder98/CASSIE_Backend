@@ -3,7 +3,10 @@ from flask import request
 from pinecone import Pinecone, ServerlessSpec, PodSpec
 import time
 from langchain_openai import OpenAIEmbeddings 
-from unstructured.partition.pdf import partition_pdf
+from unstructured.partition.api import partition_via_api
+from unstructured_client import UnstructuredClient
+from unstructured_client.models import shared
+from unstructured_client.models.errors import SDKError
 from pydantic import BaseModel
 from typing import Any
 from langchain_core.output_parsers import StrOutputParser
@@ -14,7 +17,10 @@ import tempfile
 import requests
 
 pinecone_api_key = os.environ.get('PINECONE_API_KEY')   # Get the Pinecone API key from the environment variables
-openai_api_key = os.environ.get('OPENAI_API_KEY')       # Get the OpenAI API key from the environment variables
+openai_api_key = os.environ.get('OPENAI_API_KEY')      # Get the OpenAI API key from the environment variables
+unstructured_api_key = os.environ.get('UNSTRUCTURED_API_KEY')  # Get the Unstructured API key from the environment variables
+
+s = UnstructuredClient(api_key_auth=unstructured_api_key)  # Initialize the Unstructured client
 
 use_serverless = True
 
@@ -74,9 +80,10 @@ def embed_and_store(table_element, table_summary, index_name):
     vectorstore.add_texts([table_summary], metadatas=[meta])
 
 def partition_doc(file_path, index):
-    elements = partition_pdf(
+    elements = partition_via_api(
         file_path,
         strategy="hi_res",
+        hi_res_model_name='yolox',
         infer_table_structure=True,
         chunking_strategy='by_title',
         max_characters=4000,
