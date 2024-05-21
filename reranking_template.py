@@ -4,8 +4,6 @@ from langchain_community.chat_models import ChatOpenAI  # Correct import for Cha
 import json
 import os
 
-os.environ['PINECONE_API_KEY'] = '57208fe4-cd6b-45a2-83fd-12ee06690b67'
-os.environ['OPENAI_API_KEY'] = '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'
 pinecone_api_key = os.environ.get('PINECONE_API_KEY')
 openai_api_key = os.environ.get('OPENAI_API_KEY')
 

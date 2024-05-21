@@ -1,9 +1,10 @@
 import os
 import json
+from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain.prompts import PromptTemplate
 
-os.environ['OPENAI_API_KEY'] = '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'
+load_dotenv()
 
 openai_api_key = os.environ.get('OPENAI_API_KEY')
 

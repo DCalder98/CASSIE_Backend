@@ -1,6 +1,7 @@
 import json
 import boto3
 import os
+from dotenv import load_dotenv
 from datetime import datetime
 from pinecone import Pinecone
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
@@ -10,9 +11,8 @@ from langchain.memory import ConversationBufferMemory
 from langchain.prompts import PromptTemplate
 from flask import request
 
-# Set API keys from environment variables
-os.environ['PINECONE_API_KEY'] = '57208fe4-cd6b-45a2-83fd-12ee06690b67'
-os.environ['OPENAI_API_KEY'] = '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'
+load_dotenv()
+
 pinecone_api_key = os.environ.get('PINECONE_API_KEY')
 openai_api_key = os.environ.get('OPENAI_API_KEY')
 
