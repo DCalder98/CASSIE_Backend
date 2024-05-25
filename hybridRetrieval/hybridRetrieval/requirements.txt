@@ -1,0 +1,5 @@
+requests
+pinecone-text
+langchain-openai
+pinecone-client
+nltk

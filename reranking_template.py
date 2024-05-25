@@ -8,29 +8,32 @@ pinecone_api_key = os.getenv('PINECONE_API_KEY')
 openai_api_key = os.getenv('OPENAI_API_KEY')
 
 rerank_template = PromptTemplate(
-    input_variables=["question", "passages", "k"],
-    template="""You are an AI language model assistant. Your task is to rerank passages related to a query based on their relevance. The most relevant passages should be put at the beginning. You should only pick at max {k} passages.
-    The following are passages related to this query: {question}.
-    Passages: {passages}
-    
-    Return the numbers of the passages (the order in which they appear, the first passage would be '1', the second '2', etc.) in reranked order of importance in json format (with 'order' being the key, and the value being the list of the passages. An example would be 'order':[1, 5, 7, 9, 11])."""
-)
+    input_variables=["question", "passage", "k"],
+    template="""You are an AI document storing bot. Your job is to tak in a question and a passage from a document, and return its relevance score from 0 to 100, with 100 being extremely relevant (containing the answer to the question) and 0 being extremely irrelevant.
+    QUESTION: {question}
+    PASSAGE: {passage}
 
-def rerank_passages(query: str, passages: list[str], k: int) -> str:
-    llm = ChatOpenAI(temperature=0, model_name="gpt-4o", openai_api_key=openai_api_key, response_format={ "type": "json_object" })  # Correct model and API key
-    formatted_passages = "\n".join(passages)  # Join passages into a single string
+    Return the score as 'score' in json format (for example: 'score': score)
+    """)
 
-    # Create the input for the LLMChain
-    prompt_input = {
-        "question": query,
-        "passages": formatted_passages,
-        "k": k
-    }
+def rerank_passages(query: str, passages: list[dict], k: int):
+    llm = ChatOpenAI(temperature=0, model_name="gpt-3.5-turbo", openai_api_key=openai_api_key, response_format={ "type": "json_object" })  # Correct model and API key
 
-    # Create the LLMChain
-    chain = LLMChain(llm=llm, prompt=rerank_template, output_key="rerank")
-    response = chain.invoke(prompt_input)
-    response_json = json.loads(response['rerank'])
+    for passage in passages: 
+
+        # Create the input for the LLMChain
+        prompt_input = {
+            "question": query,
+            "passage": passage,
+            "k": k
+        }
+
+        # Create the LLMChain
+        chain = LLMChain(llm=llm, prompt=rerank_template, output_key="rerank")
+        response = chain.invoke(prompt_input)
+        passage['score'] = response['rerank']
+
+    top_k_passages = [item for item in passages] ## PULL TOP K PASSAGES, CODE NOT IMPLEMENTED YET
     # print(response_json)
     
-    return response_json
+    return top_k_passages

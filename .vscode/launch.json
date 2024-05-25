@@ -1,0 +1,144 @@
+{
+    "configurations": [
+        {
+            "type": "aws-sam",
+            "request": "direct-invoke",
+            "name": "rerankingFunction:HelloWorldFunction (python3.11)",
+            "invokeTarget": {
+                "target": "template",
+                "templatePath": "${workspaceFolder}/rerankingFunction/template.yaml",
+                "logicalId": "HelloWorldFunction"
+            },
+            "lambda": {
+                "payload": {},
+                "environmentVariables": {},
+                "runtime": "python3.11"
+            }
+        },
+        {
+            "type": "aws-sam",
+            "request": "direct-invoke",
+            "name": "API rerankingFunction:HelloWorldFunction (python3.11)",
+            "invokeTarget": {
+                "target": "api",
+                "templatePath": "${workspaceFolder}/rerankingFunction/template.yaml",
+                "logicalId": "HelloWorldFunction"
+            },
+            "api": {
+                "path": "/hello",
+                "httpMethod": "get",
+                "payload": {
+                    "json": {}
+                }
+            },
+            "lambda": {
+                "runtime": "python3.11"
+            }
+        },
+        {
+            "type": "aws-sam",
+            "request": "direct-invoke",
+            "name": "hybridRetrieval:HelloWorldFunction (python3.11)",
+            "invokeTarget": {
+                "target": "template",
+                "templatePath": "${workspaceFolder}/hybridRetrieval/template.yaml",
+                "logicalId": "HelloWorldFunction"
+            },
+            "lambda": {
+                "payload": {},
+                "environmentVariables": {},
+                "runtime": "python3.11"
+            }
+        },
+        {
+            "type": "aws-sam",
+            "request": "direct-invoke",
+            "name": "API hybridRetrieval:HelloWorldFunction (python3.11)",
+            "invokeTarget": {
+                "target": "api",
+                "templatePath": "${workspaceFolder}/hybridRetrieval/template.yaml",
+                "logicalId": "HelloWorldFunction"
+            },
+            "api": {
+                "path": "/hello",
+                "httpMethod": "get",
+                "payload": {
+                    "json": {}
+                }
+            },
+            "lambda": {
+                "runtime": "python3.11"
+            }
+        },
+        {
+            "type": "aws-sam",
+            "request": "direct-invoke",
+            "name": "queryExpansion:HelloWorldFunction (python3.11)",
+            "invokeTarget": {
+                "target": "template",
+                "templatePath": "${workspaceFolder}/queryExpansion/template.yaml",
+                "logicalId": "HelloWorldFunction"
+            },
+            "lambda": {
+                "payload": {},
+                "environmentVariables": {},
+                "runtime": "python3.11"
+            }
+        },
+        {
+            "type": "aws-sam",
+            "request": "direct-invoke",
+            "name": "API queryExpansion:HelloWorldFunction (python3.11)",
+            "invokeTarget": {
+                "target": "api",
+                "templatePath": "${workspaceFolder}/queryExpansion/template.yaml",
+                "logicalId": "HelloWorldFunction"
+            },
+            "api": {
+                "path": "/hello",
+                "httpMethod": "get",
+                "payload": {
+                    "json": {}
+                }
+            },
+            "lambda": {
+                "runtime": "python3.11"
+            }
+        },
+        {
+            "type": "aws-sam",
+            "request": "direct-invoke",
+            "name": "queryHandler:HelloWorldFunction (python3.11)",
+            "invokeTarget": {
+                "target": "template",
+                "templatePath": "${workspaceFolder}/queryHandler/template.yaml",
+                "logicalId": "HelloWorldFunction"
+            },
+            "lambda": {
+                "payload": {},
+                "environmentVariables": {},
+                "runtime": "python3.11"
+            }
+        },
+        {
+            "type": "aws-sam",
+            "request": "direct-invoke",
+            "name": "API queryHandler:HelloWorldFunction (python3.11)",
+            "invokeTarget": {
+                "target": "api",
+                "templatePath": "${workspaceFolder}/queryHandler/template.yaml",
+                "logicalId": "HelloWorldFunction"
+            },
+            "api": {
+                "path": "/hello",
+                "httpMethod": "get",
+                "payload": {
+                    "json": {}
+                }
+            },
+            "lambda": {
+                "runtime": "python3.11"
+            }
+        }
+    ]
+}

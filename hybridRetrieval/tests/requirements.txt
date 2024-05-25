@@ -1,0 +1,7 @@
+pytest
+boto3
+requests
+langchain-openai
+pinecone_text
+pinecone-client
+
